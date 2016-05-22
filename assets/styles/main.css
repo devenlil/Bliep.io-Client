@@ -1,0 +1,44 @@
+html, body {
+  margin: 0;
+  padding: 0;
+  color: white;
+  font-family: 'Ubuntu';
+  font-weight: bold;
+}
+
+#overlay {
+  background: rgba(0, 0, 0, 0.5);
+  position: fixed;
+  top: 0;
+  left: 0;
+}
+
+#nick-container {
+  position: absolute;
+}
+
+#nick-container p {
+  margin: 0;
+  text-align: center;
+}
+
+.label {
+  font-size: 20px;
+  text-shadow:
+   -1px -1px 0 #000,
+    1px -1px 0 #000,
+   -1px  1px 0 #000,
+    1px  1px 0 #000;
+}
+
+.note {
+  font-size: 14px;
+}
+
+input[type="text"] {
+  height: 45px;
+  width: 385px;
+  padding: 0px 5px;
+  border: 5px solid black;
+  font: bold 45px 'Ubuntu';
+}
