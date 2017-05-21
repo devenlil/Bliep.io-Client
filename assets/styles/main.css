@@ -6,11 +6,20 @@ html, body {
   font-weight: bold;
 }
 
+canvas {
+  display: block;
+}
+
 #overlay {
-  background: rgba(0, 0, 0, 0.5);
+  /*background: rgba(0, 0, 0, 0.5);*/
   position: fixed;
   top: 0;
   left: 0;
+}
+
+#header-container {
+  position: absolute;
+  text-align: center;
 }
 
 #nick-container {
