@@ -110,9 +110,9 @@
     ctx.translate((canvas.width/2.0) - myPlayer.position.x, (canvas.height/2.0) - myPlayer.position.y);
     drawGrid();
     drawFoods();
+    drawProjectiles();
     drawMyPlayer();
     drawPlayers();
-    drawProjectiles();
     ctx.translate(-((canvas.width/2.0) - myPlayer.position.x), -((canvas.height/2.0) - myPlayer.position.y));
     drawInterface();
     // highest layer
@@ -330,9 +330,10 @@
       (canvas.width/2)-(310/2), canvas.height-65);
     ctx.fillStyle = '#292929';
     ctx.fill();
-    // Score box fill
-    var length = ((myPlayer.score*300)/50000)+26; // max = 326, min = 26
-    // [TODO] adjust length based on player score and top player's score
+    // Score box fill [max = 326, min = 26]
+    var scoreProgress = (myPlayer.score > 150000) ? 150000 : myPlayer.score;
+    var lengthScale = (326 - 26) / (150000 - 0);
+    var length = (scoreProgress * lengthScale) + 26;
     ctx.beginPath();
     ctx.moveTo((canvas.width/2)-(306/2), canvas.height-63);
     ctx.lineTo((canvas.width/2)-(306/2)+(length-20), canvas.height-63);
@@ -593,6 +594,7 @@
               },
               'isMine': isMine
             });
+            byteOffset += 8;
           }
         }
         projectiles = newProjectiles;
