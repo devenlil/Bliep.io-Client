@@ -246,7 +246,7 @@
     projectiles.forEach(function(projectile) {
       switch(projectile.type) {
         case 1:
-          drawBullet(projectile.position, ((projectile.ownerId == 0) ? true : false));
+          drawBullet(projectile.position, projectile.isMine);
           break;
       }
     }.bind(this));
