@@ -693,8 +693,8 @@
           var player = (playerId == 0) ? myPlayer : { 'id': -1, 'score': -1, 'position': {}, 'aim' : 0 };
 
           player.score = message.getUint32(byteOffset+4);
-          player.position.x = message.getUint32(byteOffset+8);
-          player.position.y = message.getUint32(byteOffset+12);
+          player.position.x = message.getInt32(byteOffset+8);
+          player.position.y = message.getInt32(byteOffset+12);
           byteOffset += 16;
 
           var isMine = true;
@@ -721,8 +721,8 @@
             newProjectiles.push({
               'type': message.getUint8(byteOffset++),
               'position': {
-                'x': message.getUint32(byteOffset),
-                'y': message.getUint32(byteOffset+4)
+                'x': message.getInt32(byteOffset),
+                'y': message.getInt32(byteOffset+4)
               },
               'isMine': isMine
             });
@@ -739,8 +739,8 @@
         for (var i = 0; i < foodCount; i++) {
           var food = { 'type': -1, 'position': {} };
           food.type = message.getUint8(byteOffset++);
-          food.position.x = food.position.originalX = message.getUint32(byteOffset);
-          food.position.y = food.position.originalY = message.getUint32(byteOffset+4);
+          food.position.x = food.position.originalX = message.getInt32(byteOffset);
+          food.position.y = food.position.originalY = message.getInt32(byteOffset+4);
           food.xPlus = Boolean(Math.floor(Math.random() * 2));
           food.yPlus = Boolean(Math.floor(Math.random() * 2));
           byteOffset += 8;
@@ -771,9 +771,9 @@
           byteOffset      += 4;
           var bulletAngle  = message.getUint16(byteOffset) * (Math.PI / 180.0);
           byteOffset      += 2;
-          var bulletStartX = message.getUint32(byteOffset);
+          var bulletStartX = message.getInt32(byteOffset);
           byteOffset      += 4;
-          var bulletStartY = message.getUint32(byteOffset);
+          var bulletStartY = message.getInt32(byteOffset);
           byteOffset      += 4;
           var bulletLife   = message.getUint16(byteOffset);
           byteOffset      += 2;
