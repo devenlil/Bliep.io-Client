@@ -2,23 +2,26 @@
 
   /* Private Variables */
 
-  var verbose     = true,
-      menuBg      = null,
-      canvas      = null,
-      ctx         = null,
-      region      = null, // unused atm
-      servers     = null,
-      websocket   = null,
-      hearbeat    = null,
-      playing     = false,
-      connecting  = false,
-      connected   = false,
-      loop        = null,
-      worldSize   = null, // unused atm (but actually initializes)
-      myPlayer    = {},
-      players     = [],
-      foods       = [],
-      projectiles = [];
+  var verbose      = true,
+      menuBg       = null,
+      canvas       = null,
+      ctx          = null,
+      region       = null, // unused atm
+      servers      = null,
+      websocket    = null,
+      hearbeat     = null,
+      playing      = false,
+      connecting   = false,
+      connected    = false,
+      loop         = null,
+      worldSize    = null, // unused atm (but actually initializes)
+      myPlayer     = {},
+      players      = [],
+      foods        = [],
+      projectiles  = [],
+      lprojectiles = []; // locally moving projectiles
+
+  const maxuint32 = 4294967295; // max value a uint32 holds. DO NOT CHANGE!!!!!
 
   var move = {
     'up': false,
@@ -220,30 +223,66 @@
       'y': myPlayer.position.y
     };
 
-    drawTank(myPlayer.tank, 1, position, myPlayer.aim, true);
+    drawTank(myPlayer.tank, calcTankSizes(myPlayer), position,
+      myPlayer.aim, true);
   }
 
   function drawPlayers() {
     players.forEach(function(player) {
-      drawTank(player.tank, 1, player.position, player.aim, false);
+      // Check if player's position has initialized (happens after packet 25)
+      if (typeof player.position == "undefined") {
+        return;
+      }
+      drawTank(player.tank, calcTankSizes(player), player.position,
+        player.aim, false);
+      drawPlayerTankInfo(player);
     });
   }
 
   function drawProjectiles() {
+    /* Server Projectiles (no longer used)
+     * Bullet coordinates are sent from server
+     */
     projectiles.forEach(function(projectile) {
       switch(projectile.type) {
         case 1:
-          drawBullet(projectile.position, projectile.isMine);
+          drawBullet(projectile.position, ((projectile.ownerId == 0) ? true : false));
           break;
       }
     }.bind(this));
+
+    /* Local projectiles
+     * Bullet coordinates are calculated locally.
+     */
+    lprojectiles.forEach(function(projectile, index) {
+      if (projectile.life <= 0) {
+        this.slice(index, 1);
+        return;
+      }
+
+      switch(projectile.type) {
+        case 1:
+          drawBullet(projectile.position, ((projectile.ownerId == 0) ? true : false),
+            projectile.life);
+          var elapsed = Date.now() - projectile.lastUpdated;
+          projectile.position.x += (projectile.velocity.x * elapsed);
+          projectile.position.y += (projectile.velocity.y * elapsed);
+          projectile.life       -= elapsed;
+          projectile.lastUpdated = Date.now();
+      }
+    }.bind(lprojectiles));
   }
 
-  function drawBullet(position, isMine) {
+  function drawBullet(position, isMine, life) {
     ctx.save();
 
+    var bulletRadius = 12; // [TODO] what about different sizes of bullets??
+    if (typeof life == "number" && life < 150 && life >= 0) {
+      ctx.globalAlpha = life/150;
+      bulletRadius += ((150-life)*0.5)/bulletRadius;
+    }
     ctx.beginPath();
-    ctx.arc(position.x, position.y, 10, 0, 2*Math.PI);
+    ctx.arc(position.x, position.y, bulletRadius, 0, 2*Math.PI);
     ctx.closePath();
     /*ctx.fillStyle = (isMine) ? friendColor : enemyColor;
     ctx.strokeStyle = stuffOutline;*/
@@ -261,7 +300,7 @@
     ctx.restore();
   }
 
-  function drawTank(type, level, position, aimAngle, isMine) {
+  function drawTank(type, sizes, position, aimAngle, isMine) {
     if (typeof position == 'undefined' ||
         typeof aimAngle == 'undefined') {
       return;
@@ -269,27 +308,22 @@
     if (typeof isMine != 'boolean') {
       isMine = false;
     }
-    var radius = 24 + (level/3.0);
 
     ctx.save();
 
-    ctx.beginPath();
     ctx.translate(position.x, position.y);
     ctx.rotate(aimAngle);
     ctx.translate(-(position.x), -(position.y));
-    ctx.rect(position.x + (0.5*radius), position.y - (0.5*radius), 37, 22);
-    ctx.closePath();
     ctx.fillStyle = stuffFill;
     ctx.strokeStyle = stuffOutline;
     ctx.lineWidth = outlineWidth;
-    ctx.fill();
-    ctx.stroke();
+    roundRect(ctx, position.x+(0.5*sizes.radius), position.y-(0.4*sizes.radius),
+      36.0+sizes.gunOffset, 22, 0.5, true, true);
 
     // Body
     ctx.beginPath();
-    ctx.arc(position.x, position.y, radius, 0, 2*Math.PI);
+    ctx.arc(position.x, position.y, sizes.radius, 0, 2*Math.PI);
     ctx.closePath();
-    //ctx.fillStyle = (isMine) ? friendColor : enemyColor;
     if (isMine) {
       ctx.fillStyle = friendColor;
       ctx.strokeStyle = friendOutline;
@@ -299,6 +333,38 @@
     }
     ctx.fill();
     ctx.stroke();
+
+    ctx.restore();
+  }
+
+  function drawPlayerTankInfo(player) {
+    var r = calcTankSizes(player).radius;
+    var x,
+        y = (player.position.y - r);
+
+    ctx.save();
+    ctx.fillStyle = '#fff';
+    ctx.strokeStyle = '#545454';
+
+    // Score
+    if (player.score > 0) {
+      ctx.lineWidth = 3;
+      ctx.font = "bold 12px Ubuntu";
+      x = player.position.x - (ctx.measureText(player.score).width / 2);
+      y -= 8;
+      ctx.strokeText(player.score, x, y);
+      ctx.fillText(player.score, x, y);
+
+      y -= 8;
+    }
+
+    // Name
+    ctx.lineWidth = 4;
+    ctx.font = "bold 19px Ubuntu";
+    x = player.position.x - (ctx.measureText(player.name).width / 2);
+    y -= 5;
+    ctx.strokeText(player.name, x, y);
+    ctx.fillText(player.name, x, y);
 
     ctx.restore();
   }
@@ -330,7 +396,8 @@
       (canvas.width/2)-(310/2), canvas.height-65);
     ctx.fillStyle = '#292929';
     ctx.fill();
-    // Score box fill [max = 326, min = 26]
+    // Score Progress Bar [max = 326, min = 26]
+    // Player score range [min = 0, max = 150000]
     var scoreProgress = (myPlayer.score > 150000) ? 150000 : myPlayer.score;
     var lengthScale = (326 - 26) / (150000 - 0);
     var length = (scoreProgress * lengthScale) + 26;
@@ -399,6 +466,34 @@
     loop = requestAnimFrame(update);
   }
 
+  function calcTankSizes(player) {
+    // [TODO] calculate the level from the player's score
+    var level = 1;
+
+    var gunOffset = 0;
+    if (player.lastBullet != 0) {
+      var timeSinceLastBullet = Date.now() - player.lastBullet;
+      var animLength = 250;
+      if (timeSinceLastBullet >= animLength) {
+        // Animation done
+        player.lastBullet = 0;
+      } else if (timeSinceLastBullet < animLength/2) {
+        // Gun Shrinking
+        gunOffset = -timeSinceLastBullet/50;
+      } else {
+        // Gun Expanding
+        gunOffset = (-(animLength/2)/50)+((timeSinceLastBullet-(animLength/2))/50);
+      }
+    }
+
+    var obj = {
+      'radius': (27 + (level/5.0)),
+      'gunOffset': (level/5.0) + gunOffset,
+      'level': 1
+    };
+    return obj;
+  }
+
   function aimTowards(x, y) {
     //goTowards(event.clientX-(canvas.width/2), (canvas.height/2)-event.clientY);
     var angle = Math.atan(y/x);
@@ -415,6 +510,41 @@
     data.setUint8(0, 50); // packet id
     data.setUint16(1, angle); // mouse angle
     sendSafe(buffer);
+  }
+
+  // Draws rounded rectangle on canvas
+  function roundRect(ctx, x, y, width, height, radius, fill, stroke) {
+    if (typeof stroke == 'undefined') {
+      stroke = true;
+    }
+    if (typeof radius === 'undefined') {
+      radius = 5;
+    }
+    if (typeof radius === 'number') {
+      radius = {tl: radius, tr: radius, br: radius, bl: radius};
+    } else {
+      var defaultRadius = {tl: 0, tr: 0, br: 0, bl: 0};
+      for (var side in defaultRadius) {
+        radius[side] = radius[side] || defaultRadius[side];
+      }
+    }
+    ctx.beginPath();
+    ctx.moveTo(x + radius.tl, y);
+    ctx.lineTo(x + width - radius.tr, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + radius.tr);
+    ctx.lineTo(x + width, y + height - radius.br);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - radius.br, y + height);
+    ctx.lineTo(x + radius.bl, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - radius.bl);
+    ctx.lineTo(x, y + radius.tl);
+    ctx.quadraticCurveTo(x, y, x + radius.tl, y);
+    ctx.closePath();
+    if (fill) {
+      ctx.fill();
+    }
+    if (stroke) {
+      ctx.stroke();
+    }
   }
 
   /* Network Functions */
@@ -511,6 +641,7 @@
             myPlayer.tank = tank;
             myPlayer.position = {};
             myPlayer.aim = 0;
+            myPlayer.lastBullet = 0;
             if (!loop) {
               hideMenu();
               update();
@@ -530,7 +661,8 @@
               'id': playerId,
               'name': nick,
               'score': score,
-              'tank': tank
+              'tank': tank,
+              'lastBullet': 0
             });
           }
         }
@@ -575,7 +707,7 @@
             // Find player in memory & update score, position, and rotation
             var pi = players.findIndex(player => player.id === playerId);
             if (pi == -1) {
-              log("Warning! Uinitialized Player's Data Received");
+              log("Warning! Uninitialized Player's Data Received (" + playerId + ")");
               continue;
             }
             players[pi].score = player.score;
@@ -596,6 +728,7 @@
             });
             byteOffset += 8;
           }
+          //byteOffset += (bulletCount * 9);
         }
         projectiles = newProjectiles;
         break;
@@ -616,6 +749,61 @@
             log("Food Already Initialized. Skipping...");
           } else {
             foods.push(food);
+          }
+        }
+        break;
+      case 35: // Spawn Bullet
+        var byteOffset = 1;
+
+        var serverTime1    = message.getUint16(byteOffset);
+        byteOffset        += 2;
+        var serverTime2    = message.getUint32(byteOffset);
+        byteOffset        += 4;
+        var packetReceived = Date.now(); // current time
+        var serverSentTime = (serverTime1*maxuint32)+serverTime2;
+
+        var bulletCount = message.getUint8(byteOffset++);
+        for (var i = 0; i < bulletCount; i++) {
+          // Read all data sent and store in variables
+          var ownerId      = message.getUint8(byteOffset++);
+          var bulletType   = message.getUint8(byteOffset++);
+          var bulletSpeed  = message.getFloat32(byteOffset);
+          byteOffset      += 4;
+          var bulletAngle  = message.getUint16(byteOffset) * (Math.PI / 180.0);
+          byteOffset      += 2;
+          var bulletStartX = message.getUint32(byteOffset);
+          byteOffset      += 4;
+          var bulletStartY = message.getUint32(byteOffset);
+          byteOffset      += 4;
+          var bulletLife   = message.getUint16(byteOffset);
+          byteOffset      += 2;
+
+          var velocity = {
+            'x': Math.cos(bulletAngle) * bulletSpeed,
+            'y': Math.sin(bulletAngle) * bulletSpeed
+          };
+          var elapsed = (Date.now() - packetReceived) + (Date.now() - serverSentTime);
+          var position = {
+            'x': bulletStartX + (elapsed * velocity.x),
+            'y': bulletStartY + (elapsed * velocity.y)
+          };
+          lprojectiles.push({
+            'ownerId': ownerId,
+            'type': bulletType,
+            'velocity': velocity,
+            'position': position,
+            'life': (bulletLife - elapsed),
+            'lastUpdated': Date.now()
+          });
+          if (ownerId == 0) {
+            myPlayer.lastBullet = Date.now();
+          } else {
+            var pi = players.findIndex(player => player.id === ownerId);
+            if (pi == -1) {
+              log("Warning! Uninitialized Player's Bullet Received (" + playerId + ")");
+              continue;
+            }
+            players[pi].lastBullet = Date.now();
           }
         }
         break;
@@ -705,7 +893,7 @@
   };
 
   window.setGameMenuBg = function(image) {
-    if (image.constructor == Image) {
+    if (image instanceof Image) {
       menuBg = image;
       render();
       return true;
